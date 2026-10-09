@@ -1,152 +1,87 @@
 # 🎙️ SpeakSense AI
 
-### Intelligent Speech Fluency & Communication Analyzer
+**Intelligent Speech Fluency & Communication Analyzer**
 
-SpeakSense AI is a Python-based speech processing capstone project that converts spoken English into text and analyzes measurable speech patterns. Using a pretrained **Whisper** speech recognition model, it estimates speaking speed, identifies selected filler words, detects long gaps between recognized words, and offers personalized feedback through an interactive **Gradio** interface.
+SpeakSense AI transcribes your speech with [Faster-Whisper](https://github.com/SYSTRAN/faster-whisper), measures how you speak (pace, filler words, pauses), and gives you a fluency score out of 100 with coaching feedback. It runs as a [Gradio](https://www.gradio.app/) web app inside Google Colab, so there is nothing to install locally.
 
-> **Note:** SpeakSense AI is a communication-practice tool, not a diagnostic assessment. Its fluency score is based on configurable rules and has not been clinically validated.
+## Features
 
-## ✨ Features
+- **Record or upload**: use your microphone or upload an audio file
+- **Transcription**: Faster-Whisper (`tiny.en`) with word-level timestamps
+- **Pace analysis**: words per minute (WPM) over the full recording
+- **Filler-word detection**: counts `um`, `uh`, `erm`, `hmm`, `ah`, `like` and reports a filler rate
+- **Pause estimation**: flags long gaps between words
+- **Fluency score**: 0 to 100, with plain-language feedback
+- **Shareable demo**: Gradio generates a temporary public link
 
-- 🎤 **Record speech** directly in the browser or upload an audio file.
-- 📝 **Automatic transcription** using Whisper (`base.en`).
-- ⏱️ **Speaking pace** in words per minute (WPM).
-- 🔎 **Filler-word detection** for words such as *um*, *uh*, *erm*, *hmm*, and *ah* when transcribed.
-- ⏸️ **Long-gap estimation** from recognized word timestamps.
-- 📊 **Fluency score** (0–100) calculated using explainable, rule-based heuristics.
-- 💡 **Actionable feedback** on pacing, filler words, and pauses.
-- 🌐 **Gradio web UI** with separate recording and uploading tabs.
+## How it works
 
-## 🧠 How It Works
-
-```text
-Microphone / Audio Upload
-            ↓
-Audio Preprocessing (16 kHz, mono)
-            ↓
-Whisper Speech-to-Text + Word Timestamps
-            ↓
-Feature Extraction
-  ├─ Speaking speed (WPM)
-  ├─ Filler-word frequency
-  └─ Long gaps between recognized words
-            ↓
-Rule-Based Scoring & Feedback
-            ↓
-Gradio Results Dashboard
+```
+Audio input → Preprocess (16 kHz mono) → Faster-Whisper transcription
+            → Feature extraction (WPM, fillers, pauses) → Scoring + feedback → Gradio UI
 ```
 
-## 🛠️ Tech Stack
+1. **Preprocessing**: audio is loaded with Librosa, resampled to 16 kHz mono, and rejected if empty or shorter than 1 second.
+2. **Transcription**: Faster-Whisper `tiny.en` runs with `beam_size=5`, VAD filtering, and word timestamps. It uses GPU (`float16`) when available, otherwise CPU (`int8`).
+3. **Feature extraction**: total words, WPM, filler count and rate, and pause count are computed from the transcript and word timestamps.
+4. **Scoring**: a rule-based score starts at 100 and loses points for pace, fillers and pauses (see below).
 
-| Component | Technology |
-|---|---|
-| Language | Python |
-| Development environment | Google Colab |
-| Speech recognition | faster-whisper (`base.en`) |
-| Audio preprocessing | librosa, NumPy, SoundFile |
-| Speech feature analysis | Python, regular expressions |
-| Interface | Gradio |
-| Optional evaluation | jiwer (word error rate), pandas |
-| Optional visualization | Matplotlib |
+## Scoring
 
-## 🚀 Run in Google Colab
+| Factor | Rule | Max penalty |
+|---|---|---|
+| Pace | Target range is 90 to 170 WPM. Outside it, 15 points are deducted | 15 |
+| Filler words | `filler rate (%) × 3` | 30 |
+| Long pauses | Gaps of 0.75 s or more between words, normalized per minute: `pauses per minute × 2` | 20 |
 
-1. Open [Google Colab](https://colab.research.google.com/).
-2. Upload and open your project notebook (for example, `SpeakSense_AI.ipynb`).
-3. Optionally select **Runtime → Change runtime type → T4 GPU** if available. CPU works too, but transcription can be slower.
-4. Run the notebook cells from top to bottom. The dependencies installation cell is:
+If fewer than 5 words are recognized, no score is given and you are asked to record a longer sample. The thresholds are coaching heuristics, not clinical measures, and can be tuned in `evaluate_fluency()`.
 
-   ```python
-   !pip install -q faster-whisper gradio librosa soundfile pandas matplotlib jiwer
-   ```
+## Getting started
 
-5. Wait for the pretrained model to load; its weights will be downloaded the first time.
-6. Launch the Gradio application from the final cell:
+### Run in Google Colab
 
-   ```python
-   demo.launch(share=True, debug=True, inline=False)
-   ```
+1. Open `SpeakSenseAI.ipynb` in Google Colab.
+2. (Optional) Switch to a GPU runtime: *Runtime → Change runtime type → T4 GPU*.
+3. Run all cells in order.
+4. Open the Gradio link printed by the last cell (local URL or temporary `gradio.live` link).
+5. Record or upload audio and click **Analyze**.
 
-7. Open the generated HTTPS Gradio link, allow microphone permission in your browser, and choose **Record Voice** or **Upload Audio**.
-8. Click the corresponding **Analyze** button to view your transcript, speech metrics, and recommendations.
-
-> The public Gradio share link is temporary. It is intended for demos, not permanent production hosting. Do not share recordings containing sensitive information.
-
-## 💻 Local Setup (Optional)
-
-Prerequisites: Python 3.10+ and a browser with microphone permissions.
+### Dependencies
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # On Windows: .venv\Scripts\activate
 pip install faster-whisper gradio librosa soundfile pandas matplotlib jiwer
 ```
 
-To run the project locally, copy the notebook's imports, model loading, analysis functions, and Gradio interface into a Python script such as `app.py`, then execute:
+## Example output
 
-```bash
-python app.py
-```
+The app returns three things:
 
-*Note: An `app.py` file is not included automatically when using the Colab notebook; it must be created separately for this local workflow.*
+- **Speech Transcript**: the recognized text
+- **Speech Analytics** (JSON): fluency score, words per minute, total words, filler words, filler rate (%), long pauses, duration (seconds)
+- **Personalized Feedback**: short tips on pace, fillers and pauses
 
-## 📊 Speech Metrics
+## Limitations
 
-| Metric | Description |
-|---|---|
-| Words per minute (WPM) | Transcribed word count divided by total recording duration, multiplied by 60 |
-| Filler count | Number of selected filler words found in recognized word timestamps |
-| Filler rate | Filler count divided by recognized word count, expressed as a percentage |
-| Long pauses | Estimated gaps of at least 0.75 seconds between consecutive recognized words |
-| Fluency score | A heuristic 0–100 score based on speaking pace, filler rate, and long-gap frequency |
+- Pauses are **estimated from gaps between word timestamps**, not true acoustic silence detection.
+- `like` is always counted as a filler, even when used normally (for example, "I like it"), so filler counts may be overestimated.
+- The `tiny.en` model is fast but less accurate than larger Whisper models, and Whisper may omit or "clean up" fillers, which can cause undercounting.
+- English only.
+- The score is a heuristic and does not measure pronunciation, grammar, vocabulary or content quality.
+- The Gradio share link is temporary (about one week) and the app stops when the Colab session ends.
 
-The baseline target speaking pace is **90–170 WPM**. These thresholds and penalties are coaching heuristics, not universal standards. Word-level timestamps and filler recognition may be imperfect; in particular, long word gaps are **not** the same as verified acoustic silence.
+## Roadmap
 
-## 🧪 Testing & Evaluation
+- Acoustic silence detection (for example with Librosa) for more accurate pauses
+- Context-aware filler detection for the word "like"
+- Larger Whisper models (`base.en`, `small.en`) as an option
+- Pitch, volume and intonation analysis
+- Progress tracking across sessions and exportable reports
+- Permanent hosting on Hugging Face Spaces
 
-Recommended test cases include clear speech, intentionally slow or fast speech, samples with filler words, samples with long breaks, and recordings with background noise.
+## Tech stack
 
-For a stronger capstone evaluation, collect short recordings from consenting participants and annotate reference transcripts, fillers, and pauses. Useful evaluation measures include:
+Python · Faster-Whisper · Librosa · SoundFile · Gradio · PyTorch · Google Colab
 
-- **Word Error Rate (WER):** Compare model transcripts with manually prepared references using `jiwer`.
-- **Filler detection precision and recall:** Compare detected fillers with human annotations.
-- **Pause-count error:** Compare predicted long-gap counts with annotated pauses, while noting timestamp limitations.
-- **Latency:** Measure processing time per recording.
+## License
 
-No model-accuracy results are claimed here; report measured results only after conducting experiments.
-
-## ⚠️ Limitations
-
-- The initial model is designed for **English** speech.
-- Background noise, accents, and poor recording quality may affect transcription.
-- Whisper may omit hesitation sounds, causing filler words to be undercounted.
-- Gaps between word timestamps are only an approximation of pauses.
-- The fluency score is rule-based; it should not be interpreted as a validated measure of speaking ability.
-- The system does not diagnose stuttering or any other medical condition.
-
-## 🔮 Future Enhancements
-
-- Before-and-after practice session comparisons.
-- Historical progress tracking and charts.
-- More robust acoustic voice-activity detection for silence analysis.
-- Pronunciation-focused feedback with suitable evaluation methods.
-- Multilingual speech support.
-- Exportable progress reports.
-
-## 🎓 Academic Use
-
-**Project:** SpeakSense AI – Intelligent Speech Fluency & Communication Analyzer  
-**Domain:** Artificial Intelligence · Speech Processing · Natural Language Processing  
-**Project type:** B.Tech AI & ML Capstone
-
-## 📚 References
-
-- [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
-- [OpenAI Whisper](https://github.com/openai/whisper)
-- [Gradio Documentation](https://www.gradio.app/docs)
-- [Librosa Documentation](https://librosa.org/doc/latest/index.html)
-- [JiWER](https://github.com/jitsi/jiwer)
-
----
-
-*Built for learning and experimentation in AI-powered speech processing.*
+Add your preferred license here (for example MIT).

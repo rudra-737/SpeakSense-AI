@@ -1,0 +1,9 @@
+faster-whisper
+gradio
+librosa
+soundfile
+numpy
+torch
+pandas
+matplotlib
+jiwer
